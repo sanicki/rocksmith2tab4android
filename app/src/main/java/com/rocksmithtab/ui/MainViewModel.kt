@@ -63,8 +63,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     outputPath = outputFile.absolutePath,
                     progress   = { msg: String, pct: Int ->
                         _uiState.value = ConversionUiState.Converting(msg, pct)
+                } catch (e: Exception) {
+                    e.printStackTrace() // Log the actual error to Logcat
+                    withContext(Dispatchers.Main) {
+                        // Surface the technical details to the UI
+                        _uiState.value = ConversionUiState.Error(e.toString())
                     }
-                )
+                }
+            }
+        }
 
                 tempInput.delete()
                 lastOutputUri = Uri.fromFile(outputFile)
