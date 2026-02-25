@@ -17,8 +17,8 @@ import java.util.zip.InflaterInputStream
  *   - RocksmithToolkitLib/Sng/Sng2014HSL.cs  (data structures)
  *   - RocksmithToolkitLib/Sng/Sng2014File.cs  (file reader / decryptor)
  *
- * SNG files are encrypted with AES-CFB and then zlib-compressed.
- * The decryption key differs between PC and Mac builds.
+ * SNG files are encrypted with AES-CFB128 (re-initialized per 16-byte block with
+ * counter-incremented IV) and then zlib-compressed.
  */
 object Sng2014Reader {
 
@@ -56,45 +56,59 @@ object Sng2014Reader {
         return parse(decompressed)
     }
 
-    // ── Decrypt (AES-CFB, counter-incremented IV per 16-byte block) ───────
+    // ── Decrypt ───────────────────────────────────────────────────────────
+    //
+    // SNG encryption: AES-256 in CFB-128 mode, re-initialized for each 16-byte
+    // block with a counter-incremented IV.  This mirrors C#
+    // RijndaelEncryptor.DecryptSngData which creates a new ICryptoTransform per
+    // block and increments rij.IV between blocks.
+    //
+    // CRITICAL: must use "AES/CFB/NoPadding" (= CFB-128, 16-byte feedback segment),
+    // NOT "AES/CFB8/NoPadding" (= CFB-8, 1-byte feedback segment).  CFB8 produces
+    // completely wrong plaintext and is the root cause of the 12.9 KB empty output.
 
     private fun decrypt(data: ByteArray, platform: Platform): ByteArray {
-        // SNG header (little-endian): 4 bytes magic 0x4A, 4 bytes platform flags, 16 bytes IV
+        // SNG header (little-endian):
+        //   4 bytes  magic low byte = 0x4A
+        //   4 bytes  platform flags
+        //  16 bytes  IV
         val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-        val magic = buf.int and 0xFF  // only the first byte matters
+        val magic = buf.int and 0xFF
         if (magic != 0x4A) {
-            // No encryption header present; return raw (already decrypted or unencrypted)
+            // No encryption header — return raw bytes (already decrypted or unencrypted)
             return data
         }
-        buf.int  // platform flags - skip
+        buf.int  // platform flags — skip
         val iv = ByteArray(16).also { buf.get(it) }
 
         val key = if (platform == Platform.MAC) SNG_KEY_MAC else SNG_KEY_PC
         val keySpec = SecretKeySpec(key, "AES")
 
         val payload = data.copyOfRange(24, data.size)
-        val output = ByteArrayOutputStream(payload.size)
+        val output  = ByteArrayOutputStream(payload.size)
 
-        // AES/CFB with per-block IV reinitialisation + counter increment
-        // Mirrors RijndaelEncryptor.DecryptSngData which re-creates the ICryptoTransform
-        // for each 16-byte block and then increments rij.IV before the next block.
+        // Decrypt 16 bytes at a time.  Each block uses a fresh CFB-128 cipher
+        // initialised with the current IV, then IV is incremented as a big-endian
+        // counter before the next block.  This is identical to what the original
+        // C# RijndaelEncryptor does.
         val currentIv = iv.copyOf()
         var offset = 0
         while (offset < payload.size) {
             val chunkSize = minOf(16, payload.size - offset)
-            // Pad to 16 bytes for the cipher call if needed
             val block = if (chunkSize == 16) {
                 payload.copyOfRange(offset, offset + 16)
             } else {
+                // Last partial block: pad to 16 for the cipher, write only chunkSize bytes
                 payload.copyOfRange(offset, offset + chunkSize) + ByteArray(16 - chunkSize)
             }
 
-            val cipher = Cipher.getInstance("AES/CFB8/NoPadding")
+            // ── FIX: use CFB (= CFB-128) not CFB8 ────────────────────────────
+            val cipher = Cipher.getInstance("AES/CFB/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(currentIv))
             val decBlock = cipher.doFinal(block)
             output.write(decBlock, 0, chunkSize)
 
-            // Increment IV as big-endian counter (same carry logic as C# source)
+            // Increment IV as big-endian counter
             var j = currentIv.size - 1
             var carry = true
             while (j >= 0 && carry) {
@@ -106,17 +120,22 @@ object Sng2014Reader {
             offset += 16
         }
 
-        return output.toByteArray().copyOf(payload.size)
+        return output.toByteArray()
     }
 
     // ── Decompress (zlib) ─────────────────────────────────────────────────
+    //
+    // After decryption the data begins with an 8-byte header:
+    //   4 bytes  uncompressed length (LE u32) — used to pre-allocate; Inflater ignores it
+    //   4 bytes  compressed length  (LE u32)
 
     private fun decompress(data: ByteArray): ByteArray {
-        // First 8 bytes of decrypted SNG: 4-byte uncompressed length (LE), 4-byte compressed length (LE)
         val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-        buf.int                          // uncompressedLen — part of header format; Inflater derives length itself
+        val uncompressedLen = buf.int   // informational; not used to limit reading
         val compressedLen   = buf.int
-        val compressed = data.copyOfRange(8, 8 + compressedLen)
+        // Guard against corrupt lengths
+        val safeCompLen = compressedLen.coerceIn(0, data.size - 8)
+        val compressed = data.copyOfRange(8, 8 + safeCompLen)
         return InflaterInputStream(ByteArrayInputStream(compressed)).readBytes()
     }
 
