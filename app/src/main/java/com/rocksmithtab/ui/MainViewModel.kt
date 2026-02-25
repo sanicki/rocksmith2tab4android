@@ -24,6 +24,7 @@ sealed class ConversionUiState {
 }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
+
     private val _uiState = MutableStateFlow<ConversionUiState>(ConversionUiState.Idle)
     val uiState: StateFlow<ConversionUiState> = _uiState.asStateFlow()
     private var lastOutputUri: Uri? = null
@@ -39,29 +40,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             setDataAndType(uri, "application/octet-stream")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        try { activity.startActivity(intent) } catch (e: Exception) {
-            _uiState.value = ConversionUiState.Error("No app found to open GPX files.")
+        try {
+            activity.startActivity(intent)
+        } catch (e: Exception) {
+            _uiState.value = ConversionUiState.Error("No app found to open .gpx files.")
         }
     }
 
     private suspend fun convert(inputUri: Uri) {
-        _uiState.value = ConversionUiState.Converting("Opening...", 0)
+        _uiState.value = ConversionUiState.Converting("Opening file...", 0)
         withContext(Dispatchers.IO) {
             var tempInput: File? = null
             try {
+                val context = getApplication<Application>()
                 tempInput = copyUriToTemp(inputUri)
-                val outputFile = File(getApplication<Application>().cacheDir, tempInput.nameWithoutExtension + ".gpx")
-                val result = Converter.convert(tempInput.absolutePath, outputFile.absolutePath) { msg, pct ->
-                    _uiState.value = ConversionUiState.Converting(msg, pct)
-                }
+                
+                val outputFile = File(context.cacheDir, tempInput.nameWithoutExtension + ".gpx")
+
+                // FIX: Use Converter object and correct SAM conversion for progress
+                val result = Converter.convert(
+                    inputPath = tempInput.absolutePath,
+                    outputPath = outputFile.absolutePath,
+                    progress = { msg, pct ->
+                        _uiState.value = ConversionUiState.Converting(msg, pct)
+                    }
+                )
+
                 lastOutputUri = Uri.fromFile(outputFile)
+
                 withContext(Dispatchers.Main) {
-                    _uiState.value = ConversionUiState.Success(result.score.tracks.size, outputFile.name, Uri.fromFile(outputFile))
+                    _uiState.value = ConversionUiState.Success(
+                        trackCount = result.score.tracks.size,
+                        outputFileName = outputFile.name,
+                        outputUri = Uri.fromFile(outputFile)
+                    )
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) { _uiState.value = ConversionUiState.Error(e.localizedMessage ?: "Error") }
-            } finally { tempInput?.delete() }
+                e.printStackTrace() // Log actual error to Logcat
+                withContext(Dispatchers.Main) {
+                    _uiState.value = ConversionUiState.Error(e.localizedMessage ?: "Conversion failed")
+                }
+            } finally {
+                tempInput?.delete()
+            }
         }
     }
 
@@ -71,7 +92,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val temp = File(context.cacheDir, name)
         context.contentResolver.openInputStream(uri)?.use { input ->
             temp.outputStream().use { output -> input.copyTo(output) }
-        } ?: throw Exception("Failed to open file")
+        } ?: throw Exception("Failed to open input stream")
         return temp
     }
 }
