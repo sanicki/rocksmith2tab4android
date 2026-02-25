@@ -16,18 +16,18 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
+    
     buildTypes {
         release {
-            isMinifyEnabled   = true
-            isShrinkResources = true
+            minifyEnabled   = true
+            shrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
         debug {
-            isMinifyEnabled   = false
+            minifyEnabled     = false
             applicationIdSuffix = ".debug"
             versionNameSuffix   = "-debug"
         }
