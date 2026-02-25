@@ -8,7 +8,6 @@
     android:padding="24dp"
     tools:context=".ui.MainActivity">
 
-    <!-- App logo / header text -->
     <TextView
         android:id="@+id/tvAppTitle"
         android:layout_width="0dp"
@@ -36,7 +35,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="8dp" />
 
-    <!-- Central open-file button -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnOpenFile"
         android:layout_width="0dp"
@@ -52,7 +50,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintVertical_bias="0.45" />
 
-    <!-- Progress bar (hidden when idle) -->
     <ProgressBar
         android:id="@+id/progressBar"
         style="@style/Widget.AppCompat.ProgressBar.Horizontal"
@@ -64,37 +61,30 @@
         app:layout_constraintTop_toBottomOf="@+id/btnOpenFile"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="24dp"
-        tools:visibility="visible"
-        tools:progress="40" />
+        android:layout_marginTop="24dp" />
 
-    <!-- Status text -->
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="@string/status_idle"
-        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
         android:textAlignment="center"
-        android:alpha="0.7"
+        android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@+id/progressBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="12dp" />
+        android:layout_marginTop="8dp" />
 
-    <!-- Open output button (shown only after success) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnOpenOutput"
-        style="@style/Widget.Material3.Button.OutlinedButton"
+        style="@style/Widget.Material3.Button.TonalButton"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="@string/btn_open_output"
+        android:text="Save GPX File"
         android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@+id/tvStatus"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="16dp"
-        tools:visibility="visible" />
+        android:layout_marginTop="16dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnSaveLog"
