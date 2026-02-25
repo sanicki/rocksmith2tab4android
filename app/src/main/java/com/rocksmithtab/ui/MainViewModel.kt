@@ -34,16 +34,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { convert(inputUri) }
     }
 
-    fun openOutputFile(activity: Activity) {
-        val uri = lastOutputUri ?: return
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/octet-stream")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        try {
-            activity.startActivity(intent)
-        } catch (e: Exception) {
-            _uiState.value = ConversionUiState.Error("No app found to open .gpx files.")
+    fun saveOutputFile(destinationUri: Uri) {
+        val sourceUri = lastOutputUri ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>()
+                context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
+                    context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                // Optional: Notify UI of success via a new State
+            } catch (e: Exception) {
+                _uiState.value = ConversionUiState.Error("Failed to save file: ${e.message}")
+            }
         }
     }
 
