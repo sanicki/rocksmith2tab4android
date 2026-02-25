@@ -16,7 +16,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** UI states emitted by [MainViewModel]. */
 sealed class ConversionUiState {
     object Idle : ConversionUiState()
     data class Converting(val message: String, val percent: Int) : ConversionUiState()
@@ -28,7 +27,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _uiState = MutableStateFlow<ConversionUiState>(ConversionUiState.Idle)
     val uiState: StateFlow<ConversionUiState> = _uiState.asStateFlow()
-
     private var lastOutputUri: Uri? = null
 
     fun startConversion(inputUri: Uri) {
@@ -44,36 +42,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         try {
             activity.startActivity(intent)
-        } catch (_: Exception) {
-            _uiState.value = ConversionUiState.Error("No app found that can open .gpx files.")
+        } catch (e: Exception) {
+            _uiState.value = ConversionUiState.Error("No app found to open .gpx files.")
         }
     }
 
     private suspend fun convert(inputUri: Uri) {
         _uiState.value = ConversionUiState.Converting("Opening file...", 0)
-        
         withContext(Dispatchers.IO) {
-            var tempInput: java.io.File? = null
+            var tempInput: File? = null
             try {
+                val context = getApplication<Application>()
                 tempInput = copyUriToTemp(inputUri)
-                val outputDir = getApplication<android.app.Application>().getExternalFilesDir(null) 
-                    ?: getApplication<android.app.Application>().filesDir
                 
-                val outputFile = java.io.File(outputDir, "converted_score.gpx")
-    
-                // FIX: Pass .absolutePath because convert() expects a String
-                val result = converter.convert(tempInput.absolutePath, outputFile.absolutePath) { progress ->
-                    _uiState.value = ConversionUiState.Converting("Processing...", progress)
-                }
-    
+                val outputFile = File(context.cacheDir, tempInput.nameWithoutExtension + ".gpx")
+
+                // FIX: Use Converter object and correct SAM conversion for progress
+                val result = Converter.convert(
+                    inputPath = tempInput.absolutePath,
+                    outputPath = outputFile.absolutePath,
+                    progress = { msg, pct ->
+                        _uiState.value = ConversionUiState.Converting(msg, pct)
+                    }
+                )
+
+                lastOutputUri = Uri.fromFile(outputFile)
+
                 withContext(Dispatchers.Main) {
-                    _uiState.value = ConversionUiState.Success(outputFile.absolutePath)
+                    _uiState.value = ConversionUiState.Success(
+                        trackCount = result.score.tracks.size,
+                        outputFileName = outputFile.name,
+                        outputUri = Uri.fromFile(outputFile)
+                    )
                 }
             } catch (e: Exception) {
-                e.printStackTrace() // Log for debugging
+                e.printStackTrace() // Log actual error to Logcat
                 withContext(Dispatchers.Main) {
-                    // Surface the actual error message (like "index out of bounds")
-                    _uiState.value = ConversionUiState.Error(e.localizedMessage ?: e.toString())
+                    _uiState.value = ConversionUiState.Error(e.localizedMessage ?: "Conversion failed")
                 }
             } finally {
                 tempInput?.delete()
@@ -83,11 +88,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun copyUriToTemp(uri: Uri): File {
         val context = getApplication<Application>()
-        val name    = DocumentFile.fromSingleUri(context, uri)?.name ?: "input.psarc"
-        val temp    = File(context.cacheDir, name)
-        context.contentResolver.openInputStream(uri)!!.use { input ->
-            temp.outputStream().use { input.copyTo(it) }
-        }
+        val name = DocumentFile.fromSingleUri(context, uri)?.name ?: "input.psarc"
+        val temp = File(context.cacheDir, name)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            temp.outputStream().use { output -> input.copyTo(output) }
+        } ?: throw Exception("Failed to open input stream")
         return temp
     }
 }
