@@ -30,6 +30,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val saveGpx = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.saveOutputFile(it) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -45,11 +51,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupButtons() {
         binding.btnOpenFile.setOnClickListener {
-            // FIX: OpenDocument requires an array of MIME types
             pickPsarc.launch(arrayOf("application/octet-stream", "*/*"))
         }
+        
         binding.btnOpenOutput.setOnClickListener {
-            viewModel.openOutputFile(this)
+            val state = viewModel.uiState.value
+            if (state is ConversionUiState.Success) {
+                saveGpx.launch(state.outputFileName) 
+            }
         }
     }
 
