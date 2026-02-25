@@ -164,7 +164,9 @@ class PsarcReader {
     private fun decryptPsarcToc(encrypted: ByteArray, length: Int): ByteArray {
         val key = SecretKeySpec(PSARC_KEY, "AES")
         val iv  = IvParameterSpec(ByteArray(16))   // zero IV for CFB
-        val cipher = Cipher.getInstance("AES/CFB8/NoPadding")
+        // OpenSSL "aes-256-cfb" is CFB with 128-bit segment size (CFB128), not CFB8.
+        // Java's "AES/CFB/NoPadding" defaults to 128-bit feedback, matching OpenSSL.
+        val cipher = Cipher.getInstance("AES/CFB/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, key, iv)
 
         val decrypted = cipher.doFinal(encrypted)
