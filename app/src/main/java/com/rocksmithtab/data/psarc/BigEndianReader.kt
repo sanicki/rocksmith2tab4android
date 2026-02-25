@@ -1,8 +1,6 @@
 package com.rocksmithtab.data.psarc
 
 import java.io.InputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 /**
  * Reads primitive types from a stream in big-endian byte order.
@@ -45,10 +43,8 @@ class BigEndianReader(private val stream: InputStream) : AutoCloseable {
     }
 
     fun readUInt16(): Int {
-        val buf = ByteArray(2)
-        buf[1] = readByte().toByte()
-        buf[0] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
+        // Big-endian: first byte is high, second is low
+        return (readByte() shl 8) or readByte()
     }
 
     fun readInt32(): Int {
@@ -56,47 +52,47 @@ class BigEndianReader(private val stream: InputStream) : AutoCloseable {
     }
 
     fun readUInt32(): Long {
-        val buf = ByteArray(4)
-        for (i in 3 downTo 0) buf[i] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).int.toLong() and 0xFFFFFFFFL
+        return (readByte().toLong() shl 24) or (readByte().toLong() shl 16) or
+               (readByte().toLong() shl  8) or  readByte().toLong()
     }
 
     fun readInt64(): Long {
-        val buf = ByteArray(8)
-        for (i in 7 downTo 0) buf[i] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).long
+        return (readByte().toLong() shl 56) or (readByte().toLong() shl 48) or
+               (readByte().toLong() shl 40) or (readByte().toLong() shl 32) or
+               (readByte().toLong() shl 24) or (readByte().toLong() shl 16) or
+               (readByte().toLong() shl  8) or  readByte().toLong()
     }
 
     fun readUInt64(): Long {
-        val buf = ByteArray(8)
-        for (i in 7 downTo 0) buf[i] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).long
+        return (readByte().toLong() shl 56) or (readByte().toLong() shl 48) or
+               (readByte().toLong() shl 40) or (readByte().toLong() shl 32) or
+               (readByte().toLong() shl 24) or (readByte().toLong() shl 16) or
+               (readByte().toLong() shl  8) or  readByte().toLong()
     }
 
     /** Reads a 5-byte big-endian unsigned integer (returned as Long). */
     fun readUInt40(): Long {
-        val buf = ByteArray(8)
-        for (i in 4 downTo 0) buf[i] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).long
+        return (readByte().toLong() shl 32) or (readByte().toLong() shl 24) or
+               (readByte().toLong() shl 16) or (readByte().toLong() shl  8) or
+                readByte().toLong()
     }
 
     /** Reads a 3-byte big-endian unsigned integer (returned as Long). */
     fun readUInt24(): Long {
-        val buf = ByteArray(4)
-        for (i in 2 downTo 0) buf[i] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).int.toLong() and 0xFFFFFFFFL
+        return (readByte().toLong() shl 16) or (readByte().toLong() shl 8) or readByte().toLong()
     }
 
     fun readSingle(): Float {
-        val buf = ByteArray(4)
-        for (i in 3 downTo 0) buf[i] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).float
+        val bits = ((readByte() shl 24) or (readByte() shl 16) or (readByte() shl 8) or readByte())
+        return java.lang.Float.intBitsToFloat(bits)
     }
 
     fun readDouble(): Double {
-        val buf = ByteArray(8)
-        for (i in 7 downTo 0) buf[i] = readByte().toByte()
-        return ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).double
+        val bits = (readByte().toLong() shl 56) or (readByte().toLong() shl 48) or
+                   (readByte().toLong() shl 40) or (readByte().toLong() shl 32) or
+                   (readByte().toLong() shl 24) or (readByte().toLong() shl 16) or
+                   (readByte().toLong() shl  8) or  readByte().toLong()
+        return java.lang.Double.longBitsToDouble(bits)
     }
 
     fun seek(pos: Long) {
