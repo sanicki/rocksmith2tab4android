@@ -132,24 +132,51 @@ object SngToScore {
             notesByTime.getOrPut(note.time) { mutableListOf() }.add(note)
         }
 
+        // Build all chords first (without durations)
+        val allChords = mutableListOf<Pair<Bar, Chord>>()
+
         for ((time, notesAtTime) in notesByTime.entries.sortedBy { it.key }) {
             val bar = track.bars.firstOrNull { it.containsTime(time) } ?: continue
 
-            // Is this a chord or a single note?
             val firstNote = notesAtTime.first()
             val isChord = (firstNote.noteMask and NOTE_MASK_CHORD.toLong()) != 0L
                 || notesAtTime.size > 1
                 || firstNote.chordId != -1
 
-            if (isChord) {
-                val chord = buildChord(sng, notesAtTime, track, time, bar)
-                bar.chords.add(chord)
+            val chord = if (isChord) {
+                buildChord(sng, notesAtTime, track, time, bar)
             } else {
                 val note = buildSingleNote(firstNote, track, time, bar)
-                val chord = Chord(start = time).also { it.notes[firstNote.stringIndex] = note }
-                setChordDuration(chord, bar)
-                bar.chords.add(chord)
+                Chord(start = time).also { it.notes[firstNote.stringIndex] = note }
             }
+            bar.chords.add(chord)
+            allChords.add(Pair(bar, chord))
+        }
+
+        // Now fill in end times and durations using next-chord timing
+        // This is critical: most notes have sustain=0, so we derive duration from
+        // the gap to the next note (as the original C# RocksmithToTab does).
+        for (i in allChords.indices) {
+            val (bar, chord) = allChords[i]
+
+            if (chord.end > chord.start) {
+                // Already has sustain-based end time — compute duration from it
+                chord.duration = bar.getDuration(chord.start, chord.end - chord.start)
+                    .toInt().coerceAtLeast(1)
+                continue
+            }
+
+            // No sustain: end time = start of next chord (or bar end)
+            val nextStart: Float = if (i + 1 < allChords.size) {
+                allChords[i + 1].second.start
+            } else {
+                // Last chord: use bar end
+                bar.end
+            }
+
+            val length = (nextStart - chord.start).coerceAtLeast(0.01f)
+            chord.end = chord.start + length
+            chord.duration = bar.getDuration(chord.start, length).toInt().coerceAtLeast(1)
         }
     }
 
@@ -203,7 +230,13 @@ object SngToScore {
             }
         }
 
-        setChordDuration(chord, bar)
+        // Sustain-based end time (may be overridden later if sustain == 0)
+        val maxSustain = chord.notes.values.maxOfOrNull { it.sustain } ?: 0f
+        if (maxSustain > 0.05f) {
+            chord.end = time + maxSustain
+        }
+        // duration left at 0 — filled by populateNotesAndChords after all chords are built
+
         return chord
     }
 
@@ -248,12 +281,6 @@ object SngToScore {
                 step             = bd.step
             ))
         }
-    }
-
-    private fun setChordDuration(chord: Chord, bar: Bar) {
-        val maxSustain = chord.notes.values.maxOfOrNull { it.sustain } ?: 0f
-        chord.end = chord.start + maxSustain.coerceAtLeast(0.01f)
-        chord.duration = bar.getDuration(chord.start, chord.end - chord.start).toInt()
     }
 
     // ── Utility ───────────────────────────────────────────────────────────
