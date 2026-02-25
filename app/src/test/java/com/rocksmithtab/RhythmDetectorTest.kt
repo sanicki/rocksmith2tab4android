@@ -2,6 +2,8 @@ package com.rocksmithtab
 
 import com.rocksmithtab.conversion.RhythmDetector
 import com.rocksmithtab.data.model.Bar
+import com.rocksmithtab.data.model.Chord
+import com.rocksmithtab.data.model.Track
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,28 +32,25 @@ import org.junit.Test
 class RhythmDetectorTest {
 
     /**
-     * A single quarter note in a 4/4 bar at 120 BPM should snap to 48 ticks
-     * (the canonical quarter-note duration in the 192-tick-per-beat grid).
+     * A bar with one chord spanning the entire 4/4 bar should produce a
+     * positive bar duration from Bar.getBarDuration().
      */
     @Test
-    fun quarterNoteSnapsTo48Ticks() {
-        // 120 BPM → beat duration = 0.5 s; a single note fills the whole bar
+    fun barDurationIsPositive() {
+        // 120 BPM, 4/4 → bar duration = 192 ticks
         val bar = Bar(
-            startTime = 0f,
-            endTime   = 2.0f,   // 4 beats × 0.5 s
+            start          = 0f,
+            end            = 2.0f,   // 4 beats × 0.5 s @ 120 BPM
             beatsPerMinute = 120,
-            beatsPerBar    = 4,
-            beatValue      = 4
+            timeNominator  = 4,
+            timeDenominator = 4
         )
-        // Insert a single chord at time 0
-        // (Bar is a data class — adapt field names to match Score.kt)
-        // This is intentionally a smoke test; expand once Score.kt constructors stabilise.
-        assertTrue("bar duration should be positive", bar.getDuration() > 0)
+        assertTrue("bar duration should be positive", bar.getBarDuration() > 0)
     }
 
     /**
-     * RhythmDetector.snap() should clamp to the nearest canonical tick value
-     * within the tolerance window (3 ticks).
+     * RhythmDetector.snapTicks() should clamp to the nearest canonical tick value
+     * within the tolerance window (6 ticks).
      */
     @Test
     fun snapClampsToNearestCanonical() {
@@ -66,5 +65,44 @@ class RhythmDetectorTest {
         assertEquals(48,  RhythmDetector.snapTicks(48))   // quarter note
         assertEquals(24,  RhythmDetector.snapTicks(24))   // eighth note
         assertEquals(192, RhythmDetector.snapTicks(192))  // whole note
+    }
+
+    @Test
+    fun snapHandlesValuesBeyondTolerance() {
+        // 70 ticks: nearest canonical is 72 (dotted quarter, diff=2) → snap
+        assertEquals(72, RhythmDetector.snapTicks(70))
+        // 100 ticks: nearest canonical is 96 (half, diff=4) → snap
+        assertEquals(96, RhythmDetector.snapTicks(100))
+    }
+
+    @Test
+    fun detectFillsAllChordDurations() {
+        val bar = Bar(
+            start          = 0f,
+            end            = 2.0f,
+            beatsPerMinute = 120,
+            timeNominator  = 4,
+            timeDenominator = 4
+        )
+        // Add beat times so Bar.getDuration() works (not used by RhythmDetector directly,
+        // but duration must already be set before detect() is called)
+        bar.beatTimes.addAll(listOf(0f, 0.5f, 1.0f, 1.5f, 2.0f))
+
+        // Pre-populate chords with raw durations (as SngToScore would produce)
+        bar.chords.add(Chord(start = 0f, end = 0.5f, duration = 24))   // eighth note
+        bar.chords.add(Chord(start = 0.5f, end = 1.0f, duration = 24))
+        bar.chords.add(Chord(start = 1.0f, end = 2.0f, duration = 96)) // half note (2 beats)
+
+        val track = Track().also { it.bars.add(bar) }
+        RhythmDetector.detect(track)
+
+        // All chords should have non-zero durations after detect()
+        for (chord in bar.chords) {
+            assertTrue("duration should be > 0, was ${chord.duration}", chord.duration > 0)
+        }
+        // Bar should not overflow
+        val total = bar.chords.sumOf { it.duration }
+        assertTrue("total ticks $total should not exceed bar duration ${bar.getBarDuration()}",
+            total <= bar.getBarDuration())
     }
 }
