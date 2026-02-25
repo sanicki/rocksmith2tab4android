@@ -9,7 +9,18 @@ import java.util.zip.DeflaterOutputStream
 /**
  * Builds a Guitar Pro .gpx binary container.
  *
- * Fixed to use absolute block-based offsets to prevent file corruption.
+ * Port of RocksmithToTabLib/GpxContainer.cs.
+ *
+ * A .gpx file is a container of named "blocks", each identified by a 4-byte
+ * magic string. The relevant blocks are:
+ *   - "BCFS" : container header
+ *   - "BCFE" : index of file entries
+ *   - "imrf" : XML content block (compressed GPIF)
+ *
+ * Block layout (little-endian):
+ *   4  bytes  : magic
+ *   4  bytes  : total block length (excluding magic + this length field)
+ *   N  bytes  : payload
  */
 class GpxContainer {
 
@@ -51,11 +62,12 @@ class GpxContainer {
 
     private fun buildBcfsBlock(): ByteArray {
         val payload = ByteArrayOutputStream()
+        // BCFS version (1)
         payload.writeInt32LE(1)
+        // Placeholder for file count
         payload.writeInt32LE(files.size)
-        
-        // Corrected for block padding: (BCFS + BCFE) + imrf header
-        var offset = (2 * BLOCK_SIZE) + HEADER_SIZE
+        // Each file entry: 4 bytes offset + 4 bytes size
+        var offset = HEADER_SIZE + 4 + 4 + files.size * 8
         for (file in files) {
             payload.writeInt32LE(offset)
             payload.writeInt32LE(file.content.size)
@@ -66,13 +78,15 @@ class GpxContainer {
 
     private fun buildBcfeBlock(): ByteArray {
         val payload = ByteArrayOutputStream()
+        // Number of entries
         payload.writeInt32LE(files.size)
         for (file in files) {
+            // Null-terminated filename padded to 127 bytes
             val nameBytes = file.name.toByteArray(Charsets.UTF_8)
             val namePadded = ByteArray(127)
             nameBytes.copyInto(namePadded, 0, 0, minOf(nameBytes.size, 126))
             payload.write(namePadded)
-            payload.write(0) 
+            payload.write(0)  // null terminator
         }
         return wrapBlock(MAGIC_BCFE, payload.toByteArray())
     }
@@ -90,7 +104,7 @@ class GpxContainer {
         out.write(magic.toByteArray(Charsets.US_ASCII))
         out.writeInt32LE(payload.size)
         out.write(payload)
-        
+        // Pad to BLOCK_SIZE boundary
         val totalSize = HEADER_SIZE + payload.size
         val paddingNeeded = (BLOCK_SIZE - (totalSize % BLOCK_SIZE)) % BLOCK_SIZE
         if (paddingNeeded > 0) out.write(ByteArray(paddingNeeded))
@@ -105,11 +119,15 @@ class GpxContainer {
         return bos.toByteArray()
     }
 
+    // ── Extension helpers ─────────────────────────────────────────────────
+
     private fun ByteArrayOutputStream.writeInt32LE(value: Int) {
         val buf = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
         buf.putInt(value)
         write(buf.array())
     }
+
+    // ── Data classes ──────────────────────────────────────────────────────
 
     private data class GpxFile(val name: String, val content: ByteArray)
 }
