@@ -61,8 +61,8 @@ class MainActivity : AppCompatActivity() {
     // ── UI setup ──────────────────────────────────────────────────────────
 
     private fun setupButtons() {
-        binding.btnOpenFile.setOnClickListener {
-            pickPsarc.launch("*/*")
+        binding.btnOpen.setOnClickListener {
+            pickPsarc.launch(arrayOf("*/*")) 
         }
         binding.btnOpenOutput.setOnClickListener {
             viewModel.openOutputFile(this)
