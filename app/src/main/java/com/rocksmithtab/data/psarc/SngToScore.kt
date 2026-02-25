@@ -35,7 +35,7 @@ object SngToScore {
     private const val NOTE_MASK_CHORD         = 0x00000002u
     private const val NOTE_MASK_IGNORE        = 0x00010000u
 
-    private const val STANDARD_MIDI_NOTES = intArrayOf(40, 45, 50, 55, 59, 64)
+    private val STANDARD_MIDI_NOTES = intArrayOf(40, 45, 50, 55, 59, 64)
 
     fun buildTrack(sng: Sng2014, attr: Attributes2014): Track {
         val track = Track(
