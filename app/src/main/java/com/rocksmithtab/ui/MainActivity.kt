@@ -16,15 +16,11 @@ import com.rocksmithtab.databinding.ActivityMainBinding
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
-
     private lateinit var binding: ActivityMainBinding
     private val viewModel: MainViewModel by viewModels()
 
-    private val pickPsarc = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
+    private val pickPsarc = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let {
-            // FIX: Keep permission alive for the ViewModel's background thread
             contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             viewModel.startConversion(it) 
         }
@@ -34,23 +30,13 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         setupButtons()
         observeViewModel()
-
-        if (intent?.action == Intent.ACTION_VIEW) {
-            intent.data?.let { viewModel.startConversion(it) }
-        }
     }
 
     private fun setupButtons() {
-        binding.btnOpenFile.setOnClickListener {
-            // FIX: OpenDocument requires an array of MIME types
-            pickPsarc.launch(arrayOf("application/octet-stream", "*/*"))
-        }
-        binding.btnOpenOutput.setOnClickListener {
-            viewModel.openOutputFile(this)
-        }
+        binding.btnOpenFile.setOnClickListener { pickPsarc.launch(arrayOf("*/*")) }
+        binding.btnOpenOutput.setOnClickListener { viewModel.openOutputFile(this) }
     }
 
     private fun observeViewModel() {
