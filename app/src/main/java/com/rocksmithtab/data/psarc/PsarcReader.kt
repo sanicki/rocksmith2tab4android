@@ -191,23 +191,28 @@ class PsarcReader {
             fun openStream(): InputStream {
                 val output = ByteArrayOutputStream()
                 if (entry.length == 0L) return ByteArrayInputStream(ByteArray(0))
-
+            
                 synchronized(raf) {
                     raf.seek(entry.offset)
                     var blockIdx = entry.zIndex.toInt()
-
+            
                     while (output.size() < entry.length) {
+                        // FIX: Prevent ArrayIndexOutOfBoundsException if the loop persists
+                        if (blockIdx >= zLengths.size) break
+            
                         val zLen = zLengths[blockIdx].toInt()
                         if (zLen == 0) {
-                            // uncompressed full block
-                            val buf = ByteArray(blockSize)
+                            // FIX: Only read what remains to avoid over-reading into next entry
+                            val remaining = (entry.length - output.size()).toInt()
+                            val readSize = minOf(blockSize, remaining)
+                            
+                            val buf = ByteArray(readSize)
                             raf.readFully(buf)
                             output.write(buf)
                         } else {
                             val compressed = ByteArray(zLen)
                             raf.readFully(compressed)
-
-                            // Check zlib magic: 0x78xx
+            
                             val isZlib = (compressed[0].toInt() and 0xFF) == 0x78
                             if (isZlib) {
                                 val inflated = InflaterInputStream(
@@ -221,8 +226,13 @@ class PsarcReader {
                         blockIdx++
                     }
                 }
-
-                return ByteArrayInputStream(output.toByteArray(), 0, entry.length.toInt())
+            
+                // Return exactly the expected length
+                val result = output.toByteArray()
+                return ByteArrayInputStream(result, 0, minOf(result.size, entry.length.toInt()))
+            }
+            
+            return ByteArrayInputStream(output.toByteArray(), 0, entry.length.toInt())
             }
         }
     }
