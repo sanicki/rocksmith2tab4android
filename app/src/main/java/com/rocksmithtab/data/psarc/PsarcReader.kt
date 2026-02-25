@@ -129,7 +129,7 @@ class PsarcReader {
         val nameEntry = entries.firstOrNull() ?: return
         nameEntry.name = "NamesBlock.bin"
 
-        val data = nameEntry.dataSource!!.openStream().readBytes()
+        val data = nameEntry.dataSource!!.().readBytes()
         val nameBlock = String(data, Charsets.US_ASCII)
         val names = nameBlock.split('\n')
 
@@ -175,7 +175,7 @@ class PsarcReader {
 
         /**
          * Lazy decompressor.
-         * Port of Entry.DataPointer.OpenStream() in PSARC.cs.
+         * Port of Entry.DataPointer.() in PSARC.cs.
          *
          * Each zlib-compressed block is identified by a non-zero zLength.
          * A zLength of 0 means the block is a full uncompressed blockSize chunk.
@@ -197,12 +197,12 @@ class PsarcReader {
                     var blockIdx = entry.zIndex.toInt()
             
                     while (output.size() < entry.length) {
-                        // FIX: Prevent ArrayIndexOutOfBoundsException if the loop persists
+                        // Prevent out-of-bounds crash if blocks don't align perfectly
                         if (blockIdx >= zLengths.size) break
             
                         val zLen = zLengths[blockIdx].toInt()
                         if (zLen == 0) {
-                            // FIX: Only read what remains to avoid over-reading into next entry
+                            // Read only what remains to avoid over-reading into next entry
                             val remaining = (entry.length - output.size()).toInt()
                             val readSize = minOf(blockSize, remaining)
                             
@@ -227,10 +227,9 @@ class PsarcReader {
                     }
                 }
             
-                // Return exactly the expected length
                 val result = output.toByteArray()
                 return ByteArrayInputStream(result, 0, minOf(result.size, entry.length.toInt()))
-            }
+            }            
             
             return ByteArrayInputStream(output.toByteArray(), 0, entry.length.toInt())
             }

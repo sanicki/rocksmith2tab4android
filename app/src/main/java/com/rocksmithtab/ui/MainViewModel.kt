@@ -50,43 +50,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun convert(inputUri: Uri) {
-        _uiState.value = ConversionUiState.Converting("Opening file…", 0)
+        _uiState.value = ConversionUiState.Converting("Opening file...", 0)
+        
         withContext(Dispatchers.IO) {
+            var tempInput: java.io.File? = null
             try {
-                val context    = getApplication<Application>()
-                val tempInput  = copyUriToTemp(inputUri)
-                _uiState.value = ConversionUiState.Converting("Parsing PSARC…", 10)
-                val outputFile = File(context.cacheDir, tempInput.nameWithoutExtension + ".gpx")
-
-                val result = Converter.convert(
-                    inputPath  = tempInput.absolutePath,
-                    outputPath = outputFile.absolutePath,
-                    progress   = { msg: String, pct: Int ->
-                        _uiState.value = ConversionUiState.Converting(msg, pct)
-                } catch (e: Exception) {
-                    e.printStackTrace() // Log the actual error to Logcat
-                    withContext(Dispatchers.Main) {
-                        // Surface the technical details to the UI
-                        _uiState.value = ConversionUiState.Error(e.toString())
-                    }
+                tempInput = copyUriToTemp(inputUri)
+                val outputDir = getApplication<android.app.Application>().getExternalFilesDir(null) 
+                    ?: getApplication<android.app.Application>().filesDir
+                
+                val outputFile = java.io.File(outputDir, "converted_score.gpx")
+    
+                // FIX: Pass .absolutePath because convert() expects a String
+                val result = converter.convert(tempInput.absolutePath, outputFile.absolutePath) { progress ->
+                    _uiState.value = ConversionUiState.Converting("Processing...", progress)
                 }
-            }
-        }
-
-                tempInput.delete()
-                lastOutputUri = Uri.fromFile(outputFile)
-
+    
                 withContext(Dispatchers.Main) {
-                    _uiState.value = ConversionUiState.Success(
-                        trackCount     = result.score.tracks.size,
-                        outputFileName = outputFile.name,
-                        outputUri      = Uri.fromFile(outputFile)
-                    )
+                    _uiState.value = ConversionUiState.Success(outputFile.absolutePath)
                 }
             } catch (e: Exception) {
+                e.printStackTrace() // Log for debugging
                 withContext(Dispatchers.Main) {
-                    _uiState.value = ConversionUiState.Error(e.message ?: "An unexpected error occurred.")
+                    // Surface the actual error message (like "index out of bounds")
+                    _uiState.value = ConversionUiState.Error(e.localizedMessage ?: e.toString())
                 }
+            } finally {
+                tempInput?.delete()
             }
         }
     }
