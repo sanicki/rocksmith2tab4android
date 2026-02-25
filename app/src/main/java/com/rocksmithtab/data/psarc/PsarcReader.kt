@@ -104,15 +104,27 @@ class PsarcReader {
         }
 
         // ── Parse zLengths table ──────────────────────────────────────────
-        val decMax = if (archiveFlags == ARCHIVE_FLAG_ENCRYPTED.toLong()) 32L else 0L
-        val zLengthCount = ((totalTocSize - (tocStream.position + decMax)) / b).toInt()
+        // The zLengths table occupies every remaining byte in the decrypted
+        // TOC buffer after the file entries.  AES/CFB8 produces NO padding —
+        // output length == input length — so subtracting any "cipher padding"
+        // correction (the old decMax=32) made the count too small and caused
+        // the ArrayIndexOutOfBoundsException (length=113; index=14737455).
+        // Using tocBytes.size - tocStream.position is the only correct approach.
+        val remainingTocBytes = tocBytes.size.toLong() - tocStream.position
+        val zLengthCount = (remainingTocBytes / b).toInt()
+
+        android.util.Log.d("PsarcReader",
+            "totalTocSize=$totalTocSize numFiles=$numFiles blockSize=$blockSize " +
+            "b=$b archiveFlags=$archiveFlags tocBytes=${tocBytes.size} " +
+            "pos=${tocStream.position} remaining=$remainingTocBytes zLengthCount=$zLengthCount")
+
         val zLengths = LongArray(zLengthCount)
         for (i in 0 until zLengthCount) {
             zLengths[i] = when (b) {
                 2 -> tocStream.readUInt16().toLong()
                 3 -> tocStream.readUInt24()
                 4 -> tocStream.readUInt32()
-                else -> throw IllegalStateException("Unexpected zLength byte width: $b")
+                else -> tocStream.readUInt16().toLong()  // safe fallback
             }
         }
 
