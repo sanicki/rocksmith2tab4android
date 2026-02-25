@@ -40,12 +40,19 @@ class PsarcBrowser {
         // ── 1. Find and parse manifests ──────────────────────────────────
         val allAttributes = mutableListOf<Attributes2014>()
         for (entry in psarc.entries) {
-            val name = entry.name.lowercase()
-            if (name.startsWith(MANIFEST_DIR) && name.endsWith(".json")) {
+            val name = entry.name.lowercase().trim()
+            // Match any .json file under a "manifests/" directory.
+            // Actual paths vary: "manifests/songs_dlc/<song>/<arr>.json"
+            // Using contains("manifests/") rather than startsWith to be safe.
+            val isManifest = name.contains("manifests/") && name.endsWith(".json")
+            Log.d(TAG, "Entry: '$name'  isManifest=$isManifest")
+            if (isManifest) {
                 try {
                     val json = entry.dataSource!!.openStream().readBytes().toString(Charsets.UTF_8)
                     val manifest = Manifest2014.fromJson(json)
-                    allAttributes.addAll(manifest.attributes())
+                    val attrs = manifest.attributes()
+                    Log.d(TAG, "  → parsed ${attrs.size} attribute(s) from ${entry.name}")
+                    allAttributes.addAll(attrs)
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to parse manifest ${entry.name}: ${e.message}")
                 }
@@ -53,6 +60,8 @@ class PsarcBrowser {
         }
 
         if (allAttributes.isEmpty()) {
+            val entryNames = psarc.entries.take(20).joinToString("\n  ") { "'${it.name}'" }
+            Log.e(TAG, "No manifest data found. Entry names seen:\n  $entryNames")
             throw IllegalStateException("No manifest data found in $filePath")
         }
 
