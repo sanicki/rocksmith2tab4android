@@ -59,9 +59,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val outputFile = File(context.cacheDir, tempInput.nameWithoutExtension + ".gpx")
 
                 val result = Converter.convert(
-                    psarcPath  = tempInput.absolutePath,
-                    gpxPath    = outputFile.absolutePath,
-                    onProgress = { msg, pct ->
+                    inputPath  = tempInput.absolutePath,
+                    outputPath = outputFile.absolutePath,
+                    progress   = { msg: String, pct: Int ->
                         _uiState.value = ConversionUiState.Converting(msg, pct)
                     }
                 )
