@@ -61,10 +61,10 @@ class PsarcReader {
         val headerStream = BigEndianReader(ByteArrayInputStream(headerBytes))
 
         val magicNumber    = headerStream.readUInt32()
-        val versionNumber  = headerStream.readUInt32()
+        headerStream.readUInt32()  // versionNumber — read to advance stream; value unused
         val compression    = headerStream.readUInt32()
         val totalTocSize   = headerStream.readUInt32()
-        val tocEntrySize   = headerStream.readUInt32()
+        headerStream.readUInt32()  // tocEntrySize  — read to advance stream; value unused
         val numFiles       = headerStream.readUInt32()
         val blockSize      = headerStream.readUInt32()
         val archiveFlags   = headerStream.readUInt32()

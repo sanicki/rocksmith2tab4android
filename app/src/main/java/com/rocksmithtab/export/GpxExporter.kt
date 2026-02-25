@@ -121,7 +121,7 @@ class GpxExporter {
         return gpTrack
     }
 
-    private fun buildBeat(chord: Chord, track: Track, bar: Bar, doc: GpifDocument): GpifBeat {
+    private fun buildBeat(chord: Chord, @Suppress("UNUSED_PARAMETER") track: Track, @Suppress("UNUSED_PARAMETER") bar: Bar, doc: GpifDocument): GpifBeat {
         val beat = GpifBeat(
             id         = doc.beats.size,
             slapped    = chord.slapped,
