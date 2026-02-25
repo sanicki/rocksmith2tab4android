@@ -87,28 +87,28 @@ object Sng2014Reader {
         val payload = data.copyOfRange(24, data.size)
         val output  = ByteArrayOutputStream(payload.size)
 
-        // Decrypt 16 bytes at a time.  Each block uses a fresh CFB-128 cipher
-        // initialised with the current IV, then IV is incremented as a big-endian
-        // counter before the next block.  This is identical to what the original
-        // C# RijndaelEncryptor does.
         val currentIv = iv.copyOf()
+        val encryptedIv = ByteArray(16)
+        
+        // Use ECB mode to manually encrypt the IV (avoids Android CFB bugs and is much faster)
+        val cipher = Cipher.getInstance("AES/ECB/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, keySpec)
+
         var offset = 0
         while (offset < payload.size) {
             val chunkSize = minOf(16, payload.size - offset)
-            val block = if (chunkSize == 16) {
-                payload.copyOfRange(offset, offset + 16)
-            } else {
-                // Last partial block: pad to 16 for the cipher, write only chunkSize bytes
-                payload.copyOfRange(offset, offset + chunkSize) + ByteArray(16 - chunkSize)
+            
+            // 1. AES-ECB encrypt the current IV
+            cipher.doFinal(currentIv, 0, 16, encryptedIv, 0)
+            
+            // 2. XOR the encrypted IV with the ciphertext block to get plaintext
+            val decBlock = ByteArray(chunkSize)
+            for (i in 0 until chunkSize) {
+                decBlock[i] = (payload[offset + i].toInt() xor encryptedIv[i].toInt()).toByte()
             }
+            output.write(decBlock)
 
-            // ── FIX: use CFB (= CFB-128) not CFB8 ────────────────────────────
-            val cipher = Cipher.getInstance("AES/CFB/NoPadding")
-            cipher.init(Cipher.DECRYPT_MODE, keySpec, IvParameterSpec(currentIv))
-            val decBlock = cipher.doFinal(block)
-            output.write(decBlock, 0, chunkSize)
-
-            // Increment IV as big-endian counter
+            // 3. Increment IV as big-endian counter
             var j = currentIv.size - 1
             var carry = true
             while (j >= 0 && carry) {
