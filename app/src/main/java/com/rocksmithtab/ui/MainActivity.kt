@@ -24,7 +24,6 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
-            // FIX: Keep permission alive for the ViewModel's background thread
             contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             viewModel.startConversion(it) 
         }
@@ -66,7 +65,7 @@ class MainActivity : AppCompatActivity() {
                 saveGpx.launch(state.outputFileName) 
             }
         }
-        
+
         binding.btnSaveLog.setOnClickListener {
             saveLog.launch("conversion_log.txt")
         }
@@ -84,27 +83,27 @@ class MainActivity : AppCompatActivity() {
         when (state) {
             is ConversionUiState.Idle -> {
                 binding.progressBar.visibility = View.GONE
-                binding.tvStatus.text = getString(R.string.status_idle)
-                binding.btnOpenFile.isEnabled = true
+                binding.tvStatus.visibility = View.GONE
                 binding.btnOpenOutput.visibility = View.GONE
             }
             is ConversionUiState.Converting -> {
                 binding.progressBar.visibility = View.VISIBLE
                 binding.progressBar.progress = state.percent
+                binding.tvStatus.visibility = View.VISIBLE
                 binding.tvStatus.text = state.message
-                binding.btnOpenFile.isEnabled = false
                 binding.btnOpenOutput.visibility = View.GONE
             }
             is ConversionUiState.Success -> {
                 binding.progressBar.visibility = View.GONE
-                binding.tvStatus.text = getString(R.string.status_success, state.trackCount, state.outputFileName)
-                binding.btnOpenFile.isEnabled = true
+                binding.tvStatus.visibility = View.VISIBLE
+                binding.tvStatus.text = "Done! Converted ${state.trackCount} arrangement(s)."
                 binding.btnOpenOutput.visibility = View.VISIBLE
             }
             is ConversionUiState.Error -> {
                 binding.progressBar.visibility = View.GONE
-                binding.tvStatus.text = getString(R.string.status_idle)
-                binding.btnOpenFile.isEnabled = true
+                binding.tvStatus.visibility = View.VISIBLE
+                binding.tvStatus.text = "Error: ${state.message}"
+                binding.btnOpenOutput.visibility = View.GONE
                 Snackbar.make(binding.root, state.message, Snackbar.LENGTH_LONG).show()
             }
         }
