@@ -1,13 +1,12 @@
 package com.rocksmithtab.ui
 
-import android.app.Activity
 import android.app.Application
-import android.content.Intent
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rocksmithtab.conversion.Converter
+import com.rocksmithtab.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +30,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startConversion(inputUri: Uri) {
         if (_uiState.value is ConversionUiState.Converting) return
+        AppLogger.clear()
+        AppLogger.d("MainViewModel", "Starting conversion...")
         viewModelScope.launch { convert(inputUri) }
     }
 
@@ -44,7 +45,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         inputStream.copyTo(outputStream)
                     }
                 }
-                // Optional: Notify UI of success via a new State
             } catch (e: Exception) {
                 _uiState.value = ConversionUiState.Error("Failed to save file: ${e.message}")
             }
@@ -56,7 +56,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val context = getApplication<Application>()
                 context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
-                    outputStream.write(com.rocksmithtab.utils.AppLogger.getLogText().toByteArray())
+                    outputStream.write(AppLogger.getLogText().toByteArray())
                 }
             } catch (e: Exception) {
                 _uiState.value = ConversionUiState.Error("Failed to save log: ${e.message}")
@@ -68,37 +68,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.value = ConversionUiState.Converting("Opening file...", 0)
         withContext(Dispatchers.IO) {
             var tempInput: File? = null
-            com.rocksmithtab.utils.AppLogger.clear()
-            com.rocksmithtab.utils.AppLogger.d("MainViewModel", "Starting conversion...")
             try {
                 val context = getApplication<Application>()
                 tempInput = copyUriToTemp(inputUri)
                 
                 val outputFile = File(context.cacheDir, tempInput.nameWithoutExtension + ".gpx")
 
-                // FIX: Use Converter object and correct SAM conversion for progress
                 val result = Converter.convert(
                     inputPath = tempInput.absolutePath,
                     outputPath = outputFile.absolutePath,
-                    progress = { msg, pct ->
+                    onProgress = { msg, pct -> 
                         _uiState.value = ConversionUiState.Converting(msg, pct)
                     }
                 )
-
+                
                 lastOutputUri = Uri.fromFile(outputFile)
-
-                withContext(Dispatchers.Main) {
-                    _uiState.value = ConversionUiState.Success(
-                        trackCount = result.score.tracks.size,
-                        outputFileName = outputFile.name,
-                        outputUri = Uri.fromFile(outputFile)
-                    )
-                }
+                _uiState.value = ConversionUiState.Success(
+                    trackCount = result, 
+                    outputFileName = outputFile.name,
+                    outputUri = lastOutputUri!!
+                )
             } catch (e: Exception) {
-                e.printStackTrace() // Log actual error to Logcat
-                withContext(Dispatchers.Main) {
-                    _uiState.value = ConversionUiState.Error(e.localizedMessage ?: "Conversion failed")
-                }
+                AppLogger.e("MainViewModel", "Conversion failed", e)
+                _uiState.value = ConversionUiState.Error(e.message ?: "Unknown error")
             } finally {
                 tempInput?.delete()
             }
@@ -107,11 +99,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun copyUriToTemp(uri: Uri): File {
         val context = getApplication<Application>()
-        val name = DocumentFile.fromSingleUri(context, uri)?.name ?: "input.psarc"
-        val temp = File(context.cacheDir, name)
+        val docFile = DocumentFile.fromSingleUri(context, uri)
+        val fileName = docFile?.name ?: "temp.psarc"
+        
+        val tempFile = File(context.cacheDir, fileName)
         context.contentResolver.openInputStream(uri)?.use { input ->
-            temp.outputStream().use { output -> input.copyTo(output) }
-        } ?: throw Exception("Failed to open input stream")
-        return temp
+            tempFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        return tempFile
     }
 }
