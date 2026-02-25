@@ -25,9 +25,7 @@ class GpxExporter {
     fun export(score: Score, output: OutputStream) {
         val gpif = buildGpif(score)
         val xml  = serializeGpif(gpif)
-        val container = GpxContainer()
-        container.addFile("score.gpif", xml.toByteArray(Charsets.UTF_8))
-        container.write(output)
+        GpxContainer().write(xml, output)
     }
 
     // ── GPIF document construction ─────────────────────────────────────────
@@ -95,7 +93,6 @@ class GpxExporter {
             instrument = if (isBass) "Bass" else "Guitar",
             tuning     = GpifTuning(midiPitches = midiPitches.reversedArray())
         )
-        gpTrack.color.let { /* use default red */ }
 
         // Build bar / voice / beat / note objects for this track
         val barsStart = doc.bars.size
@@ -107,8 +104,7 @@ class GpxExporter {
             for (chord in bar.chords) {
                 val beatId = doc.beats.size
                 val beat = buildBeat(chord, track, bar, doc)
-                beat.id.let { }
-                doc.beats.add(beat.copy())
+                doc.beats.add(beat)
                 voice.beatIds.add(beatId)
             }
 
@@ -132,13 +128,13 @@ class GpxExporter {
             section    = chord.section
         )
 
-        // Rhythm
-        val (noteValue, dots) = GpifNoteValue.fromTicks(chord.duration)
+        // Rhythm — use duration ticks already set by populateNotesAndChords
+        val (noteValue, dots) = GpifNoteValue.fromTicks(chord.duration.coerceAtLeast(1))
         val rhythm = GpifRhythm(
-            id             = doc.rhythms.size,
-            noteValue      = noteValue,
-            augmentationDot= dots,
-            rest           = chord.notes.isEmpty()
+            id              = doc.rhythms.size,
+            noteValue       = noteValue,
+            augmentationDot = dots,
+            rest            = chord.notes.isEmpty()
         )
         doc.rhythms.add(rhythm)
         beat.rhythmId = rhythm.id
@@ -320,10 +316,10 @@ class GpxExporter {
             if (n.harmonic) propsEl.appendChild(doc.gpifProperty("Harmonic", "HType", "Natural"))
             n.slide?.let { slide ->
                 val sType = when (slide.type) {
-                    GpifSlide.SlideType.SHIFT   -> "ShiftSlide"
-                    GpifSlide.SlideType.LEGATO  -> "LegatoSlide"
+                    GpifSlide.SlideType.SHIFT    -> "ShiftSlide"
+                    GpifSlide.SlideType.LEGATO   -> "LegatoSlide"
                     GpifSlide.SlideType.OUT_DOWN -> "SlideOutDown"
-                    GpifSlide.SlideType.OUT_UP  -> "SlideOutUp"
+                    GpifSlide.SlideType.OUT_UP   -> "SlideOutUp"
                 }
                 propsEl.appendChild(doc.gpifProperty(sType, "Enable", ""))
             }
@@ -390,7 +386,4 @@ class GpxExporter {
         }
         return prop
     }
-
-    private fun GpifBeat.copy() = GpifBeat(id, rhythmId, noteIds, chord, section, freeText,
-                                            tremoloPicking, slapped, popped, brushDown, brushUp)
 }
