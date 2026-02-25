@@ -1,0 +1,37 @@
+# ── Gradle build outputs ─────────────────────────────────────────────────────
+.gradle/
+build/
+app/build/
+**/build/
+
+# Gradle wrapper JAR (generated locally; checked in only if you want reproducible CI
+# without a network download — most projects omit it).
+# gradle/wrapper/gradle-wrapper.jar
+
+# ── Android Studio / IntelliJ ─────────────────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+local.properties          # contains SDK path — machine-specific, never commit
+captures/
+*.hprof
+
+# ── Signing keystores — NEVER commit these ────────────────────────────────────
+*.jks
+*.keystore
+keystore.properties       # if you store signing config here locally
+
+# ── OS noise ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Test reports ──────────────────────────────────────────────────────────────
+app/build/reports/
+
+# ── Lint ──────────────────────────────────────────────────────────────────────
+lint-results*.xml
+lint-results*.html
+
+# ── Profiling / benchmarking ─────────────────────────────────────────────────
+*.trace

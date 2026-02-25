@@ -1,0 +1,114 @@
+name: Build & Publish Minor Release
+
+on:
+  workflow_dispatch:
+
+# Required secrets:
+#   KEYSTORE_BASE64     - base64-encoded .jks keystore file
+#   KEYSTORE_PASSWORD   - keystore password
+#   KEY_ALIAS           - key alias inside the keystore
+#   KEY_PASSWORD        - key password
+
+jobs:
+  release:
+    name: Minor release (vX.Y.0)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next minor version
+        id: version
+        run: |
+          LATEST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
+            | sort -t. -k1,1V -k2,2n -k3,3n \
+            | tail -n1)
+
+          if [ -z "$LATEST" ]; then
+            NEXT="v1.0.0"
+          else
+            MAJOR=$(echo "$LATEST" | sed 's/v\([0-9]*\)\..*/\1/')
+            MINOR=$(echo "$LATEST" | sed 's/v[0-9]*\.\([0-9]*\)\..*/\1/')
+            NEXT="v${MAJOR}.$((MINOR + 1)).0"
+          fi
+
+          echo "tag=$NEXT" >> $GITHUB_OUTPUT
+          echo "version=${NEXT#v}" >> $GITHUB_OUTPUT
+          echo "Next minor version: $NEXT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant Gradle execute permission
+        run: chmod +x gradlew
+
+      - name: Inject version into build.gradle
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+          CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+          sed -i "s/versionCode .*/versionCode $CODE/" app/build.gradle
+          sed -i "s/versionName .*/versionName \"$VERSION\"/" app/build.gradle
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
+
+      - name: Build release APK
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$GITHUB_WORKSPACE/keystore.jks" \
+            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+
+      - name: Rename APK
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/release/app-release.apk \
+             "artifacts/RocksmithToTab-${{ steps.version.outputs.tag }}.apk"
+
+      - name: Create Git tag
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "RocksmithToTab ${{ steps.version.outputs.tag }}"
+          body: |
+            ## RocksmithToTab ${{ steps.version.outputs.tag }}
+
+            **Minor release** — new features and improvements.
+
+            ### Installation
+            1. Download `RocksmithToTab-${{ steps.version.outputs.tag }}.apk` below.
+            2. On your Android device, open the downloaded file and tap **Install**.
+               (You may need to allow installs from unknown sources in your device settings.)
+
+            ### What's changed
+            _Add release notes here before publishing, or edit this release on GitHub._
+          files: artifacts/RocksmithToTab-${{ steps.version.outputs.tag }}.apk
+          draft: false
+          prerelease: false
+
+      - name: Post build summary
+        run: |
+          echo "### Minor Release Published ✅" >> $GITHUB_STEP_SUMMARY
+          echo "Tag: \`${{ steps.version.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "APK: \`RocksmithToTab-${{ steps.version.outputs.tag }}.apk\`" >> $GITHUB_STEP_SUMMARY

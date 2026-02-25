@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RocksmithToTab</string>
+    <string name="tagline">Convert Rocksmith songs to Guitar Pro tabs</string>
+
+    <!-- Buttons -->
+    <string name="btn_open_file">Open .psarc file…</string>
+    <string name="btn_open_output">Open converted tab</string>
+
+    <!-- Status messages -->
+    <string name="status_idle">Tap the button above to choose a Rocksmith .psarc file.</string>
+    <string name="status_success">Done! Converted %1$d arrangement(s) → %2$s</string>
+
+    <!-- Notification -->
+    <string name="notification_title">Converting song…</string>
+
+    <!-- Error messages -->
+    <string name="error_no_manifest">No song data found in this file.\nOnly Rocksmith 2014 PC/Mac .psarc files are supported.</string>
+    <string name="error_generic">Conversion failed: %1$s</string>
+    <string name="error_no_viewer">No app found that can open .gpx files.\nInstall Guitar Pro or a compatible viewer.</string>
+</resources>

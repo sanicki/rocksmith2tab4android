@@ -1,0 +1,7 @@
+// Top-level build file — configuration that applies to ALL subprojects/modules.
+// Module-specific configuration is in app/build.gradle.
+
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android)      apply false
+}

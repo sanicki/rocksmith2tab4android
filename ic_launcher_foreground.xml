@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive icon foreground. Shown inside a circle/squircle/square mask
+    depending on the Android launcher. The safe zone is the inner 66×66dp
+    of the 108×108dp canvas.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Guitar body (simplified) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="
+            M54,20 C44,20 36,28 36,40
+            C36,48 40,55 46,59
+            L46,82 C46,85.3 48.7,88 52,88
+            L56,88 C59.3,88 62,85.3 62,82
+            L62,59 C68,55 72,48 72,40
+            C72,28 64,20 54,20 Z
+            M54,28 C59.5,28 64,32.5 64,38
+            C64,43.5 59.5,48 54,48
+            C48.5,48 44,43.5 44,38
+            C44,32.5 48.5,28 54,28 Z" />
+
+    <!-- Strings (three lines through the neck) -->
+    <line
+        android:strokeWidth="1.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.6" />
+</vector>

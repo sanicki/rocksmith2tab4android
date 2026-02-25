@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ backup/restore rules.
+    We exclude the cache directory (temp PSARC/GPX files) from backups
+    because they are large, transient, and re-generatable.
+-->
+<full-backup-content>
+    <exclude domain="cache" path="." />
+    <exclude domain="external-cache" path="." />
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>
