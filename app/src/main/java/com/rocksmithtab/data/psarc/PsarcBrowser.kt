@@ -11,14 +11,14 @@ import java.io.RandomAccessFile
  * Port of RocksmithToTabLib/PSARCBrowser.cs.
  *
  * Responsibilities:
- *  1. Open and parse the PSARC file
- *  2. Locate and parse JSON manifest(s) → [Attributes2014] per arrangement
- *  3. For each arrangement, decrypt/decompress the .sng → [Sng2014]
- *  4. Delegate to [SngToScore] to turn Sng2014 + Attributes2014 → [Score]
+ * 1. Open and parse the PSARC file
+ * 2. Locate and parse JSON manifest(s) → [Attributes2014] per arrangement
+ * 3. For each arrangement, decrypt/decompress the .sng → [Sng2014]
+ * 4. Delegate to [SngToScore] to turn Sng2014 + Attributes2014 → [Score]
  *
  * Usage:
- *   val browser = PsarcBrowser()
- *   val score = browser.getScore("/sdcard/song.psarc")
+ * val browser = PsarcBrowser()
+ * val score = browser.getScore("/sdcard/song.psarc")
  */
 class PsarcBrowser {
 
@@ -40,7 +40,8 @@ class PsarcBrowser {
         // ── 1. Find and parse manifests ──────────────────────────────────
         val allAttributes = mutableListOf<Attributes2014>()
         for (entry in psarc.entries) {
-            val name = entry.name.lowercase().trim()
+            // Replace Windows backslashes with forward slashes before lowercasing
+            val name = entry.name.replace('\\', '/').lowercase().trim()
             // Match any .json file under a "manifests/" directory.
             // Actual paths vary: "manifests/songs_dlc/<song>/<arr>.json"
             // Using contains("manifests/") rather than startsWith to be safe.
@@ -96,13 +97,14 @@ class PsarcBrowser {
     // ── Internal helpers ──────────────────────────────────────────────────
 
     private fun getTrack(psarc: PsarcReader, attr: Attributes2014): Track? {
-        // Derive the SNG entry name from the SongAsset URN
+        // Derive the SNG entry name from the SongAsset URN and lowercase it
         // URN format: urn:application:musicgamesong:<name>_<arrangement>
-        val sngName = deriveSngEntryName(attr) ?: return null
+        val sngName = deriveSngEntryName(attr)?.lowercase() ?: return null
 
         val sngEntry = psarc.entries.firstOrNull {
-            it.name.lowercase().endsWith("/$sngName") ||
-            it.name.lowercase().endsWith("/$sngName.sng")
+            // Normalize path separators to forward slashes for matching
+            val normName = it.name.replace('\\', '/').lowercase()
+            normName.endsWith("/$sngName") || normName.endsWith("/$sngName.sng")
         }
 
         if (sngEntry == null) {
