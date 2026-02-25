@@ -31,9 +31,15 @@ class MainActivity : AppCompatActivity() {
     // ── SAF file picker ───────────────────────────────────────────────────
 
     private val pickPsarc = registerForActivityResult(
-        ActivityResultContracts.GetContent()
+        ActivityResultContracts.OpenDocument() // Better for Scoped Storage
     ) { uri: Uri? ->
-        uri?.let { viewModel.startConversion(it) }
+        if (uri != null) {
+            // Grant long-term access for the background thread
+            contentResolver.takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            viewModel.startConversion(uri)
+        }
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
