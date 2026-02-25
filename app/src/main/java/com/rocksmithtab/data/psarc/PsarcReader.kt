@@ -191,45 +191,48 @@ class PsarcReader {
             fun openStream(): InputStream {
                 val output = ByteArrayOutputStream()
                 if (entry.length == 0L) return ByteArrayInputStream(ByteArray(0))
-
-            synchronized(raf) {
-                raf.seek(entry.offset)
-                var blockIdx = entry.zIndex.toInt()
-                
-                while (output.size() < entry.length) {
-                    // 1. Prevent out-of-bounds crash if chunks don't add up perfectly
-                    if (blockIdx >= zLengths.size) {
-                        break 
-                    }
             
-                    val zLen = zLengths[blockIdx].toInt()
-                    if (zLen == 0) {
-                        // 2. Uncompressed block: Only read what's left to avoid overshooting
-                        val remaining = entry.length - output.size()
-                        val readSize = minOf(blockSize.toLong(), remaining).toInt()
-                        
-                        val buf = ByteArray(readSize)
-                        raf.readFully(buf)
-                        output.write(buf)
-                    } else {
-                        val compressed = ByteArray(zLen)
-                        raf.readFully(compressed)
-                        
-                        val isZlib = (compressed[0].toInt() and 0xFF) == 0x78
-                        if (isZlib) {
-                            val inflated = InflaterInputStream(
-                                ByteArrayInputStream(compressed)
-                            ).readBytes()
-                            output.write(inflated)
+                synchronized(raf) {
+                    raf.seek(entry.offset)
+                    var blockIdx = entry.zIndex.toInt()
+            
+                    while (output.size() < entry.length) {
+                        // FIX: Prevent ArrayIndexOutOfBoundsException if the loop persists
+                        if (blockIdx >= zLengths.size) break
+            
+                        val zLen = zLengths[blockIdx].toInt()
+                        if (zLen == 0) {
+                            // FIX: Only read what remains to avoid over-reading into next entry
+                            val remaining = (entry.length - output.size()).toInt()
+                            val readSize = minOf(blockSize, remaining)
+                            
+                            val buf = ByteArray(readSize)
+                            raf.readFully(buf)
+                            output.write(buf)
                         } else {
-                            output.write(compressed)
+                            val compressed = ByteArray(zLen)
+                            raf.readFully(compressed)
+            
+                            val isZlib = (compressed[0].toInt() and 0xFF) == 0x78
+                            if (isZlib) {
+                                val inflated = InflaterInputStream(
+                                    ByteArrayInputStream(compressed)
+                                ).readBytes()
+                                output.write(inflated)
+                            } else {
+                                output.write(compressed)
+                            }
                         }
+                        blockIdx++
                     }
-                    blockIdx++
                 }
+            
+                // Return exactly the expected length
+                val result = output.toByteArray()
+                return ByteArrayInputStream(result, 0, minOf(result.size, entry.length.toInt()))
             }
-
-                return ByteArrayInputStream(output.toByteArray(), 0, entry.length.toInt())
+            
+            return ByteArrayInputStream(output.toByteArray(), 0, entry.length.toInt())
             }
         }
     }
