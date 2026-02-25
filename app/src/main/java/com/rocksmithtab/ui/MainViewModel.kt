@@ -51,10 +51,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun saveLogFile(destinationUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>()
+                context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
+                    outputStream.write(com.rocksmithtab.utils.AppLogger.getLogText().toByteArray())
+                }
+            } catch (e: Exception) {
+                _uiState.value = ConversionUiState.Error("Failed to save log: ${e.message}")
+            }
+        }
+    }
+
     private suspend fun convert(inputUri: Uri) {
         _uiState.value = ConversionUiState.Converting("Opening file...", 0)
         withContext(Dispatchers.IO) {
             var tempInput: File? = null
+            com.rocksmithtab.utils.AppLogger.clear()
+            com.rocksmithtab.utils.AppLogger.d("MainViewModel", "Starting conversion...")
             try {
                 val context = getApplication<Application>()
                 tempInput = copyUriToTemp(inputUri)

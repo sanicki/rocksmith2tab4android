@@ -36,6 +36,12 @@ class MainActivity : AppCompatActivity() {
         uri?.let { viewModel.saveOutputFile(it) }
     }
 
+    private val saveLog = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri: Uri? ->
+        uri?.let { viewModel.saveLogFile(it) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -59,6 +65,10 @@ class MainActivity : AppCompatActivity() {
             if (state is ConversionUiState.Success) {
                 saveGpx.launch(state.outputFileName) 
             }
+        }
+        
+        binding.btnSaveLog.setOnClickListener {
+            saveLog.launch("conversion_log.txt")
         }
     }
 
