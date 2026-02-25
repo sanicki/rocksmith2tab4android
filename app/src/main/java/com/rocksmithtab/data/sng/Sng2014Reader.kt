@@ -114,7 +114,7 @@ object Sng2014Reader {
     private fun decompress(data: ByteArray): ByteArray {
         // First 8 bytes of decrypted SNG: 4-byte uncompressed length (LE), 4-byte compressed length (LE)
         val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-        val uncompressedLen = buf.int
+        buf.int                          // uncompressedLen — part of header format; Inflater derives length itself
         val compressedLen   = buf.int
         val compressed = data.copyOfRange(8, 8 + compressedLen)
         return InflaterInputStream(ByteArrayInputStream(compressed)).readBytes()
