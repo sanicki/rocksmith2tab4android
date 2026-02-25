@@ -117,12 +117,15 @@ class PsarcBrowser {
     }
 
     private fun deriveSngEntryName(attr: Attributes2014): String? {
-        // SongAsset URN: "urn:application:musicgamesong:<songname>_<arrname>"
-        // Entry path:    "songs/bin/generic/<songname>_<arrname>.sng"
-        val urn = attr.songAsset
+        // PC CDLCs often omit "SongAsset", so we fallback to "SongXml" to get the URN base
+        val urn = attr.songAsset.ifBlank { attr.songXml }
         if (urn.isBlank()) return null
+        
         val lastColon = urn.lastIndexOf(':')
-        return if (lastColon >= 0) urn.substring(lastColon + 1) else urn
+        val baseName = if (lastColon >= 0) urn.substring(lastColon + 1) else urn
+        
+        // Strip out .xml extension just in case it was explicitly included in the SongXml URN
+        return baseName.removeSuffix(".xml")
     }
 
     // ── ArrangementType constants (mirrors C# ArrangementName enum) ───────
